@@ -16,7 +16,7 @@ var db *sql.DB
 
 func init() {
 	var err error
-	db, err = sql.Open("postgres", "postgres://himaja:password@localhost/image_gallery?sslmode=disable")
+	db, err = sql.Open("postgres", "postgres://himaja:password@localhost/work?sslmode=disable")
 	if err != nil {
 		panic(err)
 	}
@@ -56,7 +56,12 @@ func signup(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		// fmt.Printf("%T\n", creds.password)
+		// fmt.Printf("%T\n", creds.username)
+		// fmt.Println(creds.password)
+		// fmt.Println(creds.username)
 		hashedpassword, err := bcrypt.GenerateFromPassword([]byte(creds.Password), 8)
+		//fmt.Println(hashedpassword)
 		_, err = db.Query("insert into userdetails (username,password)values ($1,$2)", creds.Username, string(hashedpassword))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -66,30 +71,28 @@ func signup(w http.ResponseWriter, req *http.Request) {
 }
 
 func login(w http.ResponseWriter, req *http.Request) {
-	if req.Method == http.MethodPost {
-		creds := &Credentials{}
-		err := json.NewDecoder(req.Body).Decode(creds)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		result := db.QueryRow("select password from userdetails where username=$1", creds.Username)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		storedCreds := &Credentials{}
-		err = result.Scan(&storedCreds.Password)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		if err = bcrypt.CompareHashAndPassword([]byte(storedCreds.Password), []byte(creds.Password)); err != nil {
+	creds := &Credentials{}
+	err := json.NewDecoder(req.Body).Decode(creds)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	result := db.QueryRow("select password from userdetails where username=$1", creds.Username)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	storedCreds := &Credentials{}
+	err = result.Scan(&storedCreds.Password)
+	if err != nil {
+		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusUnauthorized)
+			return
 		}
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if err = bcrypt.CompareHashAndPassword([]byte(storedCreds.Password), []byte(creds.Password)); err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
 	}
 }
