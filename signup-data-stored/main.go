@@ -16,7 +16,7 @@ var db *sql.DB
 
 func init() {
 	var err error
-	db, err = sql.Open("postgres", "postgres://himaja:password@localhost/work?sslmode=disable")
+	db, err = sql.Open("postgres", "postgres://himaja:password@localhost/image_gallery?sslmode=disable")
 	if err != nil {
 		panic(err)
 	}
@@ -41,27 +41,18 @@ type Credentials struct {
 func signup(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
 		b, err := ioutil.ReadAll(req.Body)
-		fmt.Println(b)
-		fmt.Println(string(b))
 		defer req.Body.Close()
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
 		var creds Credentials
-		fmt.Println("before unmarshal", b)
 		err = json.Unmarshal(b, &creds)
-		fmt.Println(creds)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		// fmt.Printf("%T\n", creds.password)
-		// fmt.Printf("%T\n", creds.username)
-		// fmt.Println(creds.password)
-		// fmt.Println(creds.username)
 		hashedpassword, err := bcrypt.GenerateFromPassword([]byte(creds.Password), 8)
-		//fmt.Println(hashedpassword)
 		_, err = db.Query("insert into userdetails (username,password)values ($1,$2)", creds.Username, string(hashedpassword))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
