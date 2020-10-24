@@ -33,6 +33,8 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
+var jwtKey = []byte("my_secret_key")
+
 type Credentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -41,17 +43,17 @@ type Credentials struct {
 func signup(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
 		b, err := ioutil.ReadAll(req.Body)
-		fmt.Println(b)
-		fmt.Println(string(b))
+		//fmt.Println(b)
+		//fmt.Println(string(b))
 		defer req.Body.Close()
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
 		var creds Credentials
-		fmt.Println("before unmarshal", b)
+		//fmt.Println("before unmarshal", b)
 		err = json.Unmarshal(b, &creds)
-		fmt.Println(creds)
+		//fmt.Println(creds)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
