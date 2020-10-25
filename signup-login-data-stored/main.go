@@ -48,6 +48,7 @@ func signup(w http.ResponseWriter, req *http.Request) {
 		}
 		var creds Credentials
 		err = json.Unmarshal(b, &creds)
+		fmt.Println(creds)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
