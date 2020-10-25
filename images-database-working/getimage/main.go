@@ -32,7 +32,7 @@ type Image struct {
 }
 
 func main() {
-	http.HandleFunc("/api/images/id", getImage)
+	http.HandleFunc("/api/images//:id", getImage)
 	http.ListenAndServe(":8080", nil)
 }
 
@@ -41,8 +41,8 @@ func getImage(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
-	//id := 2
-	id := req.FormValue("id")
+	id := req.URL.Path
+	//id := req.FormValue("id")
 	if id == "" {
 		http.Error(w, http.StatusText(400), http.StatusBadRequest)
 		return
