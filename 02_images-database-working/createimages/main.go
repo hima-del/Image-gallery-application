@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	_ "github.com/lib/pq"
@@ -26,6 +27,7 @@ func init() {
 }
 
 type Image struct {
+	ID        int    `json:"id"`
 	Label     string `json:"label"`
 	Userid    int    `json:"userid"`
 	Imagename string `json:"imagename"`
@@ -37,11 +39,8 @@ func main() {
 }
 
 func createImage(w http.ResponseWriter, req *http.Request) {
-	fmt.Println("create image")
 	if req.Method == http.MethodPost {
-		fmt.Println(req.Body)
 		b, err := ioutil.ReadAll(req.Body)
-		fmt.Println(b)
 		defer req.Body.Close()
 		if err != nil {
 			http.Error(w, err.Error(), 500)
@@ -53,10 +52,16 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		_, err = db.Query("insert into image(label,user_id,image_name)values($1,$2,$3)", images.Label, images.Userid, images.Imagename)
+		stmnt := "insert into image (id,label,user_id,image_name)values ($1,$2,$3,$4)"
+		_, err = db.Exec(stmnt, images.ID, images.Label, images.Userid, images.Imagename)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
+			log.Fatalln(err)
 		}
+		// _, err = db.Query("insert into image (label,user_id,image_name)values ($1,$2,$3)", images.Label, images.Userid, images.Imagename)
+		// if err != nil {
+		// 	fmt.Println("error")
+		// 	w.WriteHeader(http.StatusBadRequest)
+		// 	return
+		// }
 	}
 }

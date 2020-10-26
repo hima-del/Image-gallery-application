@@ -31,7 +31,7 @@ type Image struct {
 }
 
 func main() {
-	http.HandleFunc("/api/images/:id", deleteImage)
+	http.HandleFunc("/api/images", deleteImage)
 	http.ListenAndServe(":8080", nil)
 }
 

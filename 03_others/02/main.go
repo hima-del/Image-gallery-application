@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/dgrijalva/jwt-go"
+
 	"golang.org/x/crypto/bcrypt"
 
 	_ "github.com/lib/pq"
@@ -33,11 +35,16 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
-//var jwtKey = []byte("my_secret_key")
+var jwtKey = []byte("my_secret_key")
 
 type Credentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+type Claims struct {
+	Username string `json:"username"`
+	jwt.StandardClaims
 }
 
 func signup(w http.ResponseWriter, req *http.Request) {
@@ -62,6 +69,9 @@ func signup(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		//get the expected password from database
+		row, err := db.QueryRow("")
+
 	}
 }
 
