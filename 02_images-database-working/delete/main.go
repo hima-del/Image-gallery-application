@@ -36,7 +36,7 @@ func main() {
 }
 
 func deleteImage(w http.ResponseWriter, req *http.Request) {
-	id := 2
+	id := 3
 	_, err := db.Query("delete from image where id=$1", id)
 	if err != nil {
 		http.Error(w, err.Error(), 500)

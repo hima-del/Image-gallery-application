@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/dgrijalva/jwt-go"
 
@@ -14,6 +15,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
+var jwtKey = []byte("my_secret_key")
 var db *sql.DB
 
 func init() {
@@ -35,8 +37,6 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
-var jwtKey = []byte("my_secret_key")
-
 type Credentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -56,9 +56,7 @@ func signup(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		var creds Credentials
-		//fmt.Println("before unmarshal", b)
 		err = json.Unmarshal(b, &creds)
-		//fmt.Println(creds)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -70,8 +68,47 @@ func signup(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		//get the expected password from database
-		row, err := db.QueryRow("")
-
+		result := db.QueryRow("select password from userdetails where username=$1", creds.Username)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		storedCreds := &Credentials{}
+		err = result.Scan(&storedCreds.Password)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if err = bcrypt.CompareHashAndPassword([]byte(storedCreds.Password), []byte(creds.Password)); err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+		//declare the expiration time of the token
+		//here we are adding 5mins
+		expirationTime := time.Now().Add(5 * time.Minute)
+		Claims := &Claims{
+			Username: creds.Username,
+			StandardClaims: jwt.StandardClaims{
+				ExpiresAt: expirationTime.Unix(),
+			},
+		}
+		//declare token with algorithm used for signing
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims)
+		//create jwt string
+		tokenString, err := token.SignedString(jwtKey)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		//set client cookie for token as the jwt just generated
+		http.SetCookie(w, &http.Cookie{
+			Name:    "token",
+			Value:   tokenString,
+			Expires: expirationTime,
+		})
 	}
 }
 
