@@ -27,5 +27,8 @@ func main() {
 	http.HandleFunc("/signup", signup)
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/api/images/", getImages)
+	http.HandleFunc("/api/images/id/", getImage)
+	http.HandleFunc("/api/images/id/", deleteImage)
+	http.HandleFunc("/logout", logout)
 	http.ListenAndServe(":8080", nil)
 }

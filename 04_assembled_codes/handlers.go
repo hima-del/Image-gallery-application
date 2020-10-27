@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -140,10 +142,8 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
 	//get the jwt string from cookie
 	tknstr := c.Value
-
 	//initialize new instance of claims
 	claims := &Claims{}
 	tkn, err := jwt.ParseWithClaims(tknstr, claims, func(token *jwt.Token) (interface{}, error) {
@@ -188,6 +188,113 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(js)
+}
+
+func getImage(w http.ResponseWriter, req *http.Request) {
+	if req.Method != "GET" {
+		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
+		return
+	}
+	c, err := req.Cookie("token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	tknstr := c.Value
+	claims := &Claims{}
+	tkn, err := jwt.ParseWithClaims(tknstr, claims, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if !tkn.Valid {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	urlstring := req.URL.String()
+	v := strings.TrimPrefix(urlstring, "/api/images/id/")
+	id, err := strconv.Atoi(v)
+	if v == "" {
+		http.Error(w, http.StatusText(400), http.StatusBadRequest)
+		return
+	}
+	row := db.QueryRow("select * from image where id=$1", id)
+	img := Image{}
+	err = row.Scan(&img.ID, &img.Label, &img.Userid, &img.Imagename)
+	switch {
+	case err == sql.ErrNoRows:
+		http.NotFound(w, req)
+		return
+	case err != nil:
+		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
+		return
+	}
+	js, err := json.Marshal(img)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(js)
+}
+
+func deleteImage(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodDelete {
+		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
+		return
+	}
+	c, err := req.Cookie("token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	tknstr := c.Value
+	claims := &Claims{}
+	tkn, err := jwt.ParseWithClaims(tknstr, claims, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if !tkn.Valid {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	urlstring := req.URL.String()
+	v := strings.TrimPrefix(urlstring, "/api/images/id/")
+	id, err := strconv.Atoi(v)
+	if v == "" {
+		http.Error(w, http.StatusText(400), http.StatusBadRequest)
+		return
+	}
+	_, err = db.Query("delete from image where id=$1", id)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+}
+
+func logout(w http.ResponseWriter, req *http.Request) {
+
 }
 
 func refresh(w http.ResponseWriter, req *http.Request) {
