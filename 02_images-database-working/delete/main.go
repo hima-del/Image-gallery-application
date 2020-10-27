@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	_ "github.com/lib/pq"
 )
@@ -31,13 +33,23 @@ type Image struct {
 }
 
 func main() {
-	http.HandleFunc("/api/images", deleteImage)
+	http.HandleFunc("/api/images/id/", deleteImage)
 	http.ListenAndServe(":8080", nil)
 }
 
 func deleteImage(w http.ResponseWriter, req *http.Request) {
-	id := 3
-	_, err := db.Query("delete from image where id=$1", id)
+	if req.Method != http.MethodDelete {
+		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
+		return
+	}
+	urlstring := req.URL.String()
+	v := strings.TrimPrefix(urlstring, "/api/images/id/")
+	id, err := strconv.Atoi(v)
+	if v == "" {
+		http.Error(w, http.StatusText(400), http.StatusBadRequest)
+		return
+	}
+	_, err = db.Query("delete from image where id=$1", id)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	_ "github.com/lib/pq"
 )
@@ -32,7 +34,7 @@ type Image struct {
 }
 
 func main() {
-	http.HandleFunc("/api/images//:id", getImage)
+	http.HandleFunc("/api/images/id/", getImage)
 	http.ListenAndServe(":8080", nil)
 }
 
@@ -41,15 +43,16 @@ func getImage(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
-	id := req.URL.Path
-	//id := req.FormValue("id")
-	if id == "" {
+	urlstring := req.URL.String()
+	v := strings.TrimPrefix(urlstring, "/api/images/id/")
+	id, err := strconv.Atoi(v)
+	if v == "" {
 		http.Error(w, http.StatusText(400), http.StatusBadRequest)
 		return
 	}
 	row := db.QueryRow("select * from image where id=$1", id)
 	img := Image{}
-	err := row.Scan(&img.ID, &img.Label, &img.Userid, &img.Imagename)
+	err = row.Scan(&img.ID, &img.Label, &img.Userid, &img.Imagename)
 	switch {
 	case err == sql.ErrNoRows:
 		http.NotFound(w, req)
