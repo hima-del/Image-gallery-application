@@ -294,7 +294,13 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 }
 
 func logout(w http.ResponseWriter, req *http.Request) {
-
+	if req.Method == http.MethodPost {
+		c := &http.Cookie{
+			Name:   "token",
+			MaxAge: -1,
+		}
+		http.SetCookie(w, c)
+	}
 }
 
 func refresh(w http.ResponseWriter, req *http.Request) {
