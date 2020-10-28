@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/satori/go.uuid"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -9,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	uuid "github.com/satori/go.uuid"
 
 	"github.com/dgrijalva/jwt-go"
 
@@ -44,13 +45,13 @@ type Credentials struct {
 	Password string `json:"password"`
 }
 
-type TokenDetails struct{
-	AccessToken string
+type TokenDetails struct {
+	AccessToken  string
 	RefreshToken string
-	AccessUuid string
-	RefreshUuid string
-	ATExpires int64
-	RTExpires int64
+	AccessUUID   string
+	RefreshUUID  string
+	ATExpires    int64
+	RTExpires    int64
 }
 
 func signup(w http.ResponseWriter, req *http.Request) {
@@ -78,8 +79,16 @@ func signup(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(token))
+		tokens := map[string]string{
+			"acces_token":   token.AccessToken,
+			"refresh_token": token.RefreshToken,
+		}
+		data, err := json.Marshal(tokens)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write(data)
 	}
 }
 
@@ -114,33 +123,51 @@ func login(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(token))
+		tokens := map[string]string{
+			"acces_token":   token.AccessToken,
+			"refresh_token": token.RefreshToken,
+		}
+		data, err := json.Marshal(tokens)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write(data)
 	}
 }
 
 func createToken(userid uint64) (*TokenDetails, error) {
-	td:=&TokenDetails{}
-	td.ATExpires=time.Now().Add(time.Minute*15).Unix()
-	td.AccessUuid=uuid.NewV4().String()
-
-	td.RTExpires=time.Now().Add(time.Hour*24*7).Unix()
-	td.RefreshUuid=uuid.NewV4().String()
-
 	var err error
+	td := &TokenDetails{}
+	td.ATExpires = time.Now().Add(time.Minute * 15).Unix()
+	AccessID, err := uuid.NewV4()
+	td.AccessUUID = AccessID.String()
+	RefreshID, err := uuid.NewV4()
+	td.RefreshUUID = RefreshID.String()
+
 	//creating access token
 	os.Setenv("ACCESS_SECRET", "lkrdjgjzjlgj")
 	atClaims := jwt.MapClaims{}
 	atClaims["authorized"] = true
-	atClaims["access_uuid"]=td.AccessUuid
+	atClaims["access_uuid"] = td.AccessUUID
 	atClaims["user_id"] = userid
 	atClaims["exp"] = td.ATExpires
 	pointerToAccessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
-	td.AccessToken, err := pointerToToken.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
+	td.AccessToken, err = pointerToAccessToken.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
 	if err != nil {
 		return nil, err
 	}
-	
+
 	//creating refresh token
-	
+	os.Setenv("REFRESH_SECRET", "jgsuygsghbb")
+	rtClaims := jwt.MapClaims{}
+	rtClaims["refresh_uuid"] = td.RefreshUUID
+	atClaims["user_id"] = userid
+	atClaims["exp"] = td.RTExpires
+	pointerToRefreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, rtClaims)
+	td.RefreshToken, err = pointerToRefreshToken.SignedString([]byte(os.Getenv("REFRESH_SECRET")))
+	if err != nil {
+		return nil, err
+	}
+	return td, nil
 }
