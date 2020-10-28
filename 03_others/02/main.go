@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/satori/go.uuid"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -41,6 +42,15 @@ type Credentials struct {
 	ID       uint64 `json:"id"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+type TokenDetails struct{
+	AccessToken string
+	RefreshToken string
+	AccessUuid string
+	RefreshUuid string
+	ATExpires int64
+	RTExpires int64
 }
 
 func signup(w http.ResponseWriter, req *http.Request) {
@@ -109,18 +119,28 @@ func login(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func createToken(userid uint64) (string, error) {
+func createToken(userid uint64) (*TokenDetails, error) {
+	td:=&TokenDetails{}
+	td.ATExpires=time.Now().Add(time.Minute*15).Unix()
+	td.AccessUuid=uuid.NewV4().String()
+
+	td.RTExpires=time.Now().Add(time.Hour*24*7).Unix()
+	td.RefreshUuid=uuid.NewV4().String()
+
 	var err error
 	//creating access token
 	os.Setenv("ACCESS_SECRET", "lkrdjgjzjlgj")
 	atClaims := jwt.MapClaims{}
 	atClaims["authorized"] = true
+	atClaims["access_uuid"]=td.AccessUuid
 	atClaims["user_id"] = userid
-	atClaims["exp"] = time.Now().Add(time.Minute * 15).Unix()
-	pointerToToken := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
-	token, err := pointerToToken.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
+	atClaims["exp"] = td.ATExpires
+	pointerToAccessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
+	td.AccessToken, err := pointerToToken.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return token, nil
+	
+	//creating refresh token
+	
 }
