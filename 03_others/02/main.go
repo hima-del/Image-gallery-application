@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -15,7 +16,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var jwtKey = []byte("my_secret_key")
 var db *sql.DB
 
 func init() {
@@ -38,13 +38,9 @@ func main() {
 }
 
 type Credentials struct {
+	ID       uint64 `json:"id"`
 	Username string `json:"username"`
 	Password string `json:"password"`
-}
-
-type Claims struct {
-	Username string `json:"username"`
-	jwt.StandardClaims
 }
 
 func signup(w http.ResponseWriter, req *http.Request) {
@@ -62,53 +58,18 @@ func signup(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		hashedpassword, err := bcrypt.GenerateFromPassword([]byte(creds.Password), 8)
-		_, err = db.Query("insert into userdetails (username,password)values ($1,$2)", creds.Username, string(hashedpassword))
+		_, err = db.Query("insert into userdetails (id,username,password)values ($1,$2,$3)", creds.ID, creds.Username, string(hashedpassword))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		//get the expected password from database
-		result := db.QueryRow("select password from userdetails where username=$1", creds.Username)
+		token, err := createToken(creds.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		storedCreds := &Credentials{}
-		err = result.Scan(&storedCreds.Password)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		if err = bcrypt.CompareHashAndPassword([]byte(storedCreds.Password), []byte(creds.Password)); err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-		}
-		//declare the expiration time of the token
-		//here we are adding 5mins
-		expirationTime := time.Now().Add(5 * time.Minute)
-		Claims := &Claims{
-			Username: creds.Username,
-			StandardClaims: jwt.StandardClaims{
-				ExpiresAt: expirationTime.Unix(),
-			},
-		}
-		//declare token with algorithm used for signing
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims)
-		//create jwt string
-		tokenString, err := token.SignedString(jwtKey)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		//set client cookie for token as the jwt just generated
-		http.SetCookie(w, &http.Cookie{
-			Name:    "token",
-			Value:   tokenString,
-			Expires: expirationTime,
-		})
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(token))
 	}
 }
 
@@ -138,24 +99,28 @@ func login(w http.ResponseWriter, req *http.Request) {
 		if err = bcrypt.CompareHashAndPassword([]byte(storedCreds.Password), []byte(creds.Password)); err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 		}
-		expirationTime := time.Now().Add(5 * time.Minute)
-		Claims := &Claims{
-			Username: creds.Username,
-			StandardClaims: jwt.StandardClaims{
-				ExpiresAt: expirationTime.Unix(),
-			},
-		}
-		token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims)
-		tokenString, err := token.SignedString(jwtKey)
+		token, err := createToken(creds.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		http.SetCookie(w, &http.Cookie{
-			Name:    "token",
-			Value:   tokenString,
-			Expires: expirationTime,
-		})
-
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(token))
 	}
+}
+
+func createToken(userid uint64) (string, error) {
+	var err error
+	//creating access token
+	os.Setenv("ACCESS_SECRET", "lkrdjgjzjlgj")
+	atClaims := jwt.MapClaims{}
+	atClaims["authorized"] = true
+	atClaims["user_id"] = userid
+	atClaims["exp"] = time.Now().Add(time.Minute * 15).Unix()
+	pointerToToken := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
+	token, err := pointerToToken.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
+	if err != nil {
+		return "", err
+	}
+	return token, nil
 }

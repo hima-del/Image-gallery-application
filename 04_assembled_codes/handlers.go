@@ -72,12 +72,6 @@ func signup(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		//set client cookie for token as the jwt just generated
-		http.SetCookie(w, &http.Cookie{
-			Name:    "token",
-			Value:   tokenString,
-			Expires: expirationTime,
-		})
 	}
 }
 
@@ -120,31 +114,14 @@ func login(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		http.SetCookie(w, &http.Cookie{
-			Name:    "token",
-			Value:   tokenString,
-			Expires: expirationTime,
-		})
-
 	}
 }
 
+func validateToken(w http.ResponseWriter, req *http.Request) {
+
+}
+
 func getImages(w http.ResponseWriter, req *http.Request) {
-	//obtain the session token from the request cookies which come with every request
-	c, err := req.Cookie("token")
-	if err != nil {
-		if err == http.ErrNoCookie {
-			//cookie is not set
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		//for other errors return bad request status
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	//get the jwt string from cookie
-	tknstr := c.Value
-	//initialize new instance of claims
 	claims := &Claims{}
 	tkn, err := jwt.ParseWithClaims(tknstr, claims, func(token *jwt.Token) (interface{}, error) {
 		return jwtKey, nil
@@ -195,16 +172,6 @@ func getImage(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
-	c, err := req.Cookie("token")
-	if err != nil {
-		if err == http.ErrNoCookie {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	tknstr := c.Value
 	claims := &Claims{}
 	tkn, err := jwt.ParseWithClaims(tknstr, claims, func(token *jwt.Token) (interface{}, error) {
 		return jwtKey, nil
@@ -253,16 +220,6 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
-	c, err := req.Cookie("token")
-	if err != nil {
-		if err == http.ErrNoCookie {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	tknstr := c.Value
 	claims := &Claims{}
 	tkn, err := jwt.ParseWithClaims(tknstr, claims, func(token *jwt.Token) (interface{}, error) {
 		return jwtKey, nil
@@ -295,25 +252,11 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 
 func logout(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
-		c := &http.Cookie{
-			Name:   "token",
-			MaxAge: -1,
-		}
-		http.SetCookie(w, c)
+
 	}
 }
 
 func refresh(w http.ResponseWriter, req *http.Request) {
-	c, err := req.Cookie("token")
-	if err != nil {
-		if err == http.ErrNoCookie {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	tknstr := c.Value
 	claims := &Claims{}
 	tkn, err := jwt.ParseWithClaims(tknstr, claims, func(token *jwt.Token) (interface{}, error) {
 		return jwtKey, nil
@@ -343,10 +286,4 @@ func refresh(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	//set the new token as the users session_token cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:    "session_token",
-		Value:   tokenstring,
-		Expires: expirationTime,
-	})
 }
