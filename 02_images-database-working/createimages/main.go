@@ -57,11 +57,5 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		// _, err = db.Query("insert into image (label,user_id,image_name)values ($1,$2,$3)", images.Label, images.Userid, images.Imagename)
-		// if err != nil {
-		// 	fmt.Println("error")
-		// 	w.WriteHeader(http.StatusBadRequest)
-		// 	return
-		// }
 	}
 }
