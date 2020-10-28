@@ -43,6 +43,7 @@ func main() {
 	http.HandleFunc("/api/images/", getImages)
 	http.HandleFunc("/api/images/", createImage)
 	http.HandleFunc("/api/images/id/", deleteImage)
+	http.HandleFunc("/logout", logout)
 	http.ListenAndServe(":8080", nil)
 }
 
@@ -273,6 +274,12 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
+	}
+}
+
+func logout(w http.ResponseWriter, req *http.Request) {
+	if req.Method == http.MethodPost {
+
 	}
 }
 
