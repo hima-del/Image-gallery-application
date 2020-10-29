@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -39,11 +38,9 @@ func init() {
 func main() {
 	http.HandleFunc("/signup", signup)
 	http.HandleFunc("/login", login)
-	http.HandleFunc("/api/images/id/", getImage)
 	http.HandleFunc("/api/images/", getImages)
-	http.HandleFunc("/api/images/", createImage)
 	http.HandleFunc("/api/images/id/", deleteImage)
-	http.HandleFunc("/logout", logout)
+	//http.HandleFunc("/logout", logout)
 	http.ListenAndServe(":8080", nil)
 }
 
@@ -151,43 +148,43 @@ func login(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func getImage(w http.ResponseWriter, req *http.Request) {
-	if req.Method != "GET" {
-		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
-		return
-	}
+// func getImage(w http.ResponseWriter, req *http.Request) {
+// 	if req.Method != "GET" {
+// 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
+// 		return
+// 	}
 
-	err := tokenValid(req)
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	urlstring := req.URL.String()
-	v := strings.TrimPrefix(urlstring, "/api/images/id/")
-	id, err := strconv.Atoi(v)
-	if v == "" {
-		http.Error(w, http.StatusText(400), http.StatusBadRequest)
-		return
-	}
-	row := db.QueryRow("select * from image where id=$1", id)
-	img := Image{}
-	err = row.Scan(&img.ID, &img.Label, &img.Userid, &img.Imagename)
-	switch {
-	case err == sql.ErrNoRows:
-		http.NotFound(w, req)
-		return
-	case err != nil:
-		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
-		return
-	}
-	js, err := json.Marshal(img)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(js)
-}
+// 	err := tokenValid(req)
+// 	if err != nil {
+// 		w.WriteHeader(http.StatusUnauthorized)
+// 		return
+// 	}
+// 	urlstring := req.URL.String()
+// 	v := strings.TrimPrefix(urlstring, "/api/images/id/")
+// 	id, err := strconv.Atoi(v)
+// 	if v == "" {
+// 		http.Error(w, http.StatusText(400), http.StatusBadRequest)
+// 		return
+// 	}
+// 	row := db.QueryRow("select * from image where id=$1", id)
+// 	img := Image{}
+// 	err = row.Scan(&img.ID, &img.Label, &img.Userid, &img.Imagename)
+// 	switch {
+// 	case err == sql.ErrNoRows:
+// 		http.NotFound(w, req)
+// 		return
+// 	case err != nil:
+// 		http.Error(w, http.StatusText(500), http.StatusInternalServerError)
+// 		return
+// 	}
+// 	js, err := json.Marshal(img)
+// 	if err != nil {
+// 		http.Error(w, err.Error(), http.StatusInternalServerError)
+// 		return
+// 	}
+// 	w.Header().Set("Content-Type", "application/json")
+// 	w.Write(js)
+// }
 
 func getImages(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
@@ -230,33 +227,33 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 	w.Write(js)
 }
 
-func createImage(w http.ResponseWriter, req *http.Request) {
-	if req.Method == http.MethodPost {
+// func createImage(w http.ResponseWriter, req *http.Request) {
+// 	if req.Method == http.MethodPost {
 
-		err := tokenValid(req)
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		b, err := ioutil.ReadAll(req.Body)
-		defer req.Body.Close()
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		var images Image
-		err = json.Unmarshal(b, &images)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		stmnt := "insert into image (id,label,user_id,image_name)values ($1,$2,$3,$4)"
-		_, err = db.Exec(stmnt, images.ID, images.Label, images.Userid, images.Imagename)
-		if err != nil {
-			log.Fatalln(err)
-		}
-	}
-}
+// 		err := tokenValid(req)
+// 		if err != nil {
+// 			w.WriteHeader(http.StatusUnauthorized)
+// 			return
+// 		}
+// 		b, err := ioutil.ReadAll(req.Body)
+// 		defer req.Body.Close()
+// 		if err != nil {
+// 			http.Error(w, err.Error(), 500)
+// 			return
+// 		}
+// 		var images Image
+// 		err = json.Unmarshal(b, &images)
+// 		if err != nil {
+// 			w.WriteHeader(http.StatusBadRequest)
+// 			return
+// 		}
+// 		stmnt := "insert into image (id,label,user_id,image_name)values ($1,$2,$3,$4)"
+// 		_, err = db.Exec(stmnt, images.ID, images.Label, images.Userid, images.Imagename)
+// 		if err != nil {
+// 			log.Fatalln(err)
+// 		}
+// 	}
+// }
 
 func deleteImage(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodDelete {
@@ -277,11 +274,11 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func logout(w http.ResponseWriter, req *http.Request) {
-	if req.Method == http.MethodPost {
+// func logout(w http.ResponseWriter, req *http.Request) {
+// 	if req.Method == http.MethodPost {
 
-	}
-}
+// 	}
+// }
 
 func createToken(userid uint64) (*TokenDetails, error) {
 	var err error
