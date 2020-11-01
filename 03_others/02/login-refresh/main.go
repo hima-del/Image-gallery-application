@@ -15,6 +15,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/go-redis/redis/v8"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -22,6 +23,8 @@ import (
 )
 
 var db *sql.DB
+
+var client *redis.Client
 
 func init() {
 	var err error
@@ -34,6 +37,17 @@ func init() {
 		panic(err)
 	}
 	fmt.Println("you are connected to database")
+	dsn := os.Getenv("REDIS_DSN")
+	if len(dsn) == 0 {
+		dsn = "localhost:6379"
+	}
+	client = redis.NewClient(&redis.Options{
+		Addr: dsn, //redis port
+	})
+	_, err = client.Ping().Result()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func main() {
@@ -392,9 +406,9 @@ func createToken(userid uint64) (*TokenDetails, error) {
 	td := &TokenDetails{}
 	td.ATExpires = time.Now().Add(time.Minute * 15).Unix()
 	td.RTExpires = time.Now().Add(time.Hour * 24 * 7).Unix()
-	AccessID, err := uuid.NewV4()
+	AccessID := uuid.NewV4()
 	td.AccessUUID = AccessID.String()
-	RefreshID, err := uuid.NewV4()
+	RefreshID := uuid.NewV4()
 	td.RefreshUUID = RefreshID.String()
 
 	//creating access token
@@ -428,7 +442,7 @@ func createAccessToken(userid uint64) (*TokenDetails, error) {
 	var err error
 	at := &TokenDetails{}
 	at.ATExpires = time.Now().Add(time.Minute * 15).Unix()
-	AccessID, err := uuid.NewV4()
+	AccessID := uuid.NewV4()
 	at.AccessUUID = AccessID.String()
 	//creating new access token
 	os.Setenv("ACCESS_SECRET", "newaccesssecret")
@@ -443,4 +457,20 @@ func createAccessToken(userid uint64) (*TokenDetails, error) {
 		return nil, err
 	}
 	return at, nil
+}
+
+func CreateAuth(userid uint64, td *TokenDetails) error {
+	at := time.Unix(td.ATExpires, 0) //converting Unix to UTC(to Time object)
+	rt := time.Unix(td.RTExpires, 0)
+	now := time.Now()
+
+	errAccess := client.Set(td.AccessUUID, strconv.Itoa(int(userid)), at.Sub(now)).Err()
+	if errAccess != nil {
+		return errAccess
+	}
+	errRefresh := client.Set(td.RefreshUUID, strconv.Itoa(int(userid)), rt.Sub(now)).Err()
+	if errRefresh != nil {
+		return errRefresh
+	}
+	return nil
 }
