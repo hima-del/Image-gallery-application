@@ -21,6 +21,14 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// var globalDebugLevel = 0
+
+// func myLog(level int, debugMsg string) {
+// 	if level <= globalDebugLevel {
+// 		fmt.Println(debugMsg)
+// 	}
+// }
+
 var db *sql.DB
 
 func init() {
@@ -34,6 +42,7 @@ func init() {
 		panic(err)
 	}
 	fmt.Println("you are connected to database")
+	//myLog(1,"you are connected to the database")
 }
 
 func main() {
@@ -191,7 +200,7 @@ func getImage(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err := tokenValid(req)
+	err := tokenValid(w, req)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
@@ -229,7 +238,7 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err := tokenValid(req)
+	err := tokenValid(w, req)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
@@ -266,7 +275,7 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 
 func createImage(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
-		err := tokenValid(req)
+		err := tokenValid(w, req)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -296,7 +305,7 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
-	err := tokenValid(req)
+	err := tokenValid(w, req)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
@@ -317,22 +326,19 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 
 func logout(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
-		creds := &Credentials{}
-		err := tokenValid(req)
+		err := tokenValid(w, req)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		err = deleteToken(creds.ID)
+		tokenStringLogout := extractToken(req)
+		//fmt.Println(tokenString)
+		stmnt := "insert into blacklist (token)values ($1)"
+		_, err = db.Exec(stmnt, tokenStringLogout)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+			log.Fatalln(err)
 		}
-		fmt.Println("logged out")
-		//bearToken := req.Header.Get("Authorization")
-		//fmt.Println(bearToken)
-		//req.Header.Del("Authorization")
-		//fmt.Println("logged out")
+		fmt.Println("succesfully logged out")
 	}
 }
 
@@ -345,43 +351,47 @@ func extractToken(req *http.Request) string {
 	return ""
 }
 
-func verifyToken(req *http.Request) (*jwt.Token, error) {
-	tokenString := extractToken(req)
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		_, ok := token.Method.(*jwt.SigningMethodHMAC)
-		if !ok {
-			return nil, fmt.Errorf("unexpected signing method:%v", token.Header["alg"])
-		}
-		return []byte(os.Getenv("ACCESS_SECRET")), nil
-	})
+func verifyToken(w http.ResponseWriter, req *http.Request) (*jwt.Token, error) {
+	rows, err := db.Query("select * from blacklist")
 	if err != nil {
-		return nil, err
+		http.Error(w, err.Error(), 500)
 	}
-	return token, nil
+	defer rows.Close()
+	black := make([]string, 0)
+	for rows.Next() {
+		var blk string
+		err = rows.Scan(&blk)
+		black = append(black, blk)
+	}
+	for _, v := range black {
+		tokenString := extractToken(req)
+		if v == tokenString {
+			fmt.Println("equal")
+			w.WriteHeader(http.StatusUnauthorized)
+		} else {
+			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+				_, ok := token.Method.(*jwt.SigningMethodHMAC)
+				if !ok {
+					return nil, fmt.Errorf("unexpected signing method:%v", token.Header["alg"])
+				}
+				return []byte(os.Getenv("ACCESS_SECRET")), nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			return token, nil
+		}
+	}
+	return nil, err
 }
 
-func tokenValid(req *http.Request) error {
-	token, err := verifyToken(req)
+func tokenValid(w http.ResponseWriter, req *http.Request) error {
+	token, err := verifyToken(w, req)
 	if err != nil {
 		return err
 	}
 	_, ok := token.Claims.(jwt.Claims)
 	if !ok && !token.Valid {
-		return err
-	}
-	return nil
-}
-
-func deleteToken(userid uint64) error {
-	var err error
-	td := &TokenDetails{}
-	td.ATExpires = time.Now().Unix()
-	os.Setenv("ACCESS_SECRET", "")
-	atClaims := jwt.MapClaims{}
-	atClaims["exp"] = td.ATExpires
-	pointerToAccessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
-	td.AccessToken, err = pointerToAccessToken.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
-	if err != nil {
 		return err
 	}
 	return nil
