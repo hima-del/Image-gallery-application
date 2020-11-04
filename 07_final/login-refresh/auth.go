@@ -58,14 +58,14 @@ func tokenValid(w http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
-func createToken(userid uint64) (*TokenDetails, error) {
+func createToken(userid uint64, username string) (*TokenDetails, error) {
 	var err error
 	td := &TokenDetails{}
-	td.ATExpires = time.Now().Add(time.Minute * 15).Unix()
+	td.ATExpires = time.Now().Add(time.Hour * 24).Unix()
 	td.RTExpires = time.Now().Add(time.Hour * 24 * 7).Unix()
-	AccessID := uuid.NewV4()
+	AccessID, _ := uuid.NewV4()
 	td.AccessUUID = AccessID.String()
-	RefreshID := uuid.NewV4()
+	RefreshID, _ := uuid.NewV4()
 	td.RefreshUUID = RefreshID.String()
 
 	//creating access token
@@ -74,6 +74,7 @@ func createToken(userid uint64) (*TokenDetails, error) {
 	atClaims["authorized"] = true
 	atClaims["access_uuid"] = td.AccessUUID
 	atClaims["user_id"] = userid
+	atClaims["username"] = username
 	atClaims["exp"] = td.ATExpires
 	pointerToAccessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
 	td.AccessToken, err = pointerToAccessToken.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
@@ -85,8 +86,9 @@ func createToken(userid uint64) (*TokenDetails, error) {
 	os.Setenv("REFRESH_SECRET", "refreshkey")
 	rtClaims := jwt.MapClaims{}
 	rtClaims["refresh_uuid"] = td.RefreshUUID
-	atClaims["user_id"] = userid
-	atClaims["exp"] = td.RTExpires
+	rtClaims["user_id"] = userid
+	rtClaims["username"] = username
+	rtClaims["exp"] = td.RTExpires
 	pointerToRefreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, rtClaims)
 	td.RefreshToken, err = pointerToRefreshToken.SignedString([]byte(os.Getenv("REFRESH_SECRET")))
 	if err != nil {
@@ -98,8 +100,8 @@ func createToken(userid uint64) (*TokenDetails, error) {
 func createAccessToken(userid uint64) (*TokenDetails, error) {
 	var err error
 	at := &TokenDetails{}
-	at.ATExpires = time.Now().Add(time.Minute * 15).Unix()
-	AccessID := uuid.NewV4()
+	at.ATExpires = time.Now().Add(time.Hour * 24).Unix()
+	AccessID, _ := uuid.NewV4()
 	at.AccessUUID = AccessID.String()
 	//creating new access token
 	os.Setenv("ACCESS_SECRET", "newaccesssecret")

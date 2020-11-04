@@ -94,12 +94,12 @@ func signup(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		hashedpassword, err := bcrypt.GenerateFromPassword([]byte(creds.Password), 8)
-		_, err = db.Query("insert into userdetails (id,username,password)values ($1,$2,$3)", creds.ID, creds.Username, string(hashedpassword))
+		_, err = db.Query("insert into userdetails (username,password)values ($1,$2)", creds.Username, string(hashedpassword))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		token, err := createToken(creds.ID)
+		token, err := createToken(creds.ID, creds.Username)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -160,7 +160,7 @@ func login(w http.ResponseWriter, req *http.Request) {
 			}
 			w.Write(tokenData)
 		} else if beartoken == "" {
-			token, err := createToken(creds.ID)
+			token, err := createToken(creds.ID, creds.Username)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
