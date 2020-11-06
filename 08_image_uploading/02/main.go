@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -340,6 +341,12 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, http.StatusText(400), http.StatusBadRequest)
 			return
 		}
+		result := db.QueryRow("select image_name from image where id=$1", id)
+		var deletedimage string
+		err = result.Scan(&deletedimage)
+		imagename := "/temp-images/" + deletedimage
+		fmt.Println(imagename)
+		err = os.Remove(imagename)
 		_, err = db.Query("delete from image where id=$1", id)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
