@@ -344,8 +344,7 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 		result := db.QueryRow("select image_name from image where id=$1", id)
 		var deletedimage string
 		err = result.Scan(&deletedimage)
-		imagename := "/temp-images/" + deletedimage
-		fmt.Println(imagename)
+		imagename := "temp-images/" + deletedimage
 		err = os.Remove(imagename)
 		_, err = db.Query("delete from image where id=$1", id)
 		if err != nil {
