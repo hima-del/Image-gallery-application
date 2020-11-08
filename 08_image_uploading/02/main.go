@@ -37,7 +37,7 @@ func main() {
 	http.HandleFunc("/api/images/id/", handleone)
 	http.HandleFunc("/api/images/", handletwo)
 	http.HandleFunc("/logout", logout)
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":80", nil)
 }
 
 func handleone(w http.ResponseWriter, req *http.Request) {
