@@ -29,6 +29,7 @@ func init() {
 		panic(err)
 	}
 	fmt.Println("you are connected to database")
+
 }
 
 func main() {
@@ -37,7 +38,14 @@ func main() {
 	http.HandleFunc("/api/images/id/", handleone)
 	http.HandleFunc("/api/images/", handletwo)
 	http.HandleFunc("/logout", logout)
+	http.Handle("/", http.FileServer(http.Dir("./temp-images")))
 	http.ListenAndServe(":80", nil)
+}
+func setupResponse(w http.ResponseWriter, req *http.Request) {
+	(w).Header().Set("Access-Control-Allow-Origin", "*")
+	(w).Header().Set("Access-Control-Allow-Credentials", "true")
+	(w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	(w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization,accept, origin, Cache-Control, X-Requested-With")
 }
 
 func handleone(w http.ResponseWriter, req *http.Request) {
@@ -86,6 +94,11 @@ type TokenDetails struct {
 
 func signup(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
+		setupResponse(w, req)
+		if req.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		b, err := ioutil.ReadAll(req.Body)
 		defer req.Body.Close()
 		if err != nil {
@@ -98,32 +111,44 @@ func signup(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		hashedpassword, err := bcrypt.GenerateFromPassword([]byte(creds.Password), 8)
-		_, err = db.Query("insert into userdetails (username,password)values ($1,$2)", creds.Username, string(hashedpassword))
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
+		result := db.QueryRow("select username from userdetails where username=$1", creds.Username)
+		storedCreds := &Credentials{}
+		err = result.Scan(&storedCreds.Username)
+		if storedCreds.Username != "" {
+			fmt.Fprintln(w, "username already taken")
+		} else {
+			hashedpassword, err := bcrypt.GenerateFromPassword([]byte(creds.Password), 8)
+			_, err = db.Query("insert into userdetails (username,password)values ($1,$2)", creds.Username, string(hashedpassword))
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			token, err := createToken(creds.ID, creds.Username)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			tokens := map[string]string{
+				"acces_token":   token.AccessToken,
+				"refresh_token": token.RefreshToken,
+			}
+			data, err := json.Marshal(tokens)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Write(data)
 		}
-		token, err := createToken(creds.ID, creds.Username)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		tokens := map[string]string{
-			"acces_token":   token.AccessToken,
-			"refresh_token": token.RefreshToken,
-		}
-		data, err := json.Marshal(tokens)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		w.Write(data)
 	}
 }
 
 func login(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
+		setupResponse(w, req)
+		if req.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		creds := &Credentials{}
 		err := json.NewDecoder(req.Body).Decode(creds)
 		if err != nil {
@@ -165,21 +190,23 @@ func login(w http.ResponseWriter, req *http.Request) {
 			}
 			w.Write(tokenData)
 		} else if beartoken == "" {
-			token, err := createToken(creds.ID, creds.Username)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
+			if err = bcrypt.CompareHashAndPassword([]byte(storedCreds.Password), []byte(creds.Password)); err == nil {
+				token, err := createToken(creds.ID, creds.Username)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				tokens := map[string]string{
+					"acces_token":   token.AccessToken,
+					"refresh_token": token.RefreshToken,
+				}
+				data, err := json.Marshal(tokens)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				w.Write(data)
 			}
-			tokens := map[string]string{
-				"acces_token":   token.AccessToken,
-				"refresh_token": token.RefreshToken,
-			}
-			data, err := json.Marshal(tokens)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			w.Write(data)
 		}
 	}
 }
@@ -187,6 +214,11 @@ func login(w http.ResponseWriter, req *http.Request) {
 func getImage(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
+		return
+	}
+	setupResponse(w, req)
+	if req.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	token := checkBlacklist(w, req)
@@ -231,6 +263,11 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
+	setupResponse(w, req)
+	if req.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	token := checkBlacklist(w, req)
 	if token != "" {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -272,6 +309,11 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 
 func createImage(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
+		setupResponse(w, req)
+		if req.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		req.ParseMultipartForm(10 << 20)
 		token := checkBlacklist(w, req)
 		if token != "" {
@@ -296,7 +338,8 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 			fmt.Println("file size:", header.Size)
 			fmt.Println("MIME header:", header.Header)
 
-			tempFile, err := ioutil.TempFile("temp-images", "upload-*.png")
+			//tempFile, err := ioutil.TempFile("/d/training-project-repo/Image-gallery-application/08_image_uploading/02/temp-images", "upload-*.png")
+			tempFile, err := ioutil.TempFile("/home/ubuntu/images", "upload-*.png")
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -309,8 +352,10 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 			tempFile.Write(fileBytes)
 			fmt.Fprintln(w, "successfully uploaded file")
 			fileName := tempFile.Name()
-			v := strings.TrimPrefix(fileName, `temp-images\`)
+			// v := strings.TrimPrefix(fileName, `temp-images\`)
+			v := strings.TrimPrefix(fileName, `/home/ubuntu/images/`)
 			images := Imageupload{l, i, v}
+			images.Imagename = "http://13.59.20.19/" + images.Imagename
 			stmnt := "insert into image (label,user_id,image_name)values ($1,$2,$3)"
 			_, err = db.Exec(stmnt, images.Label, images.Userid, images.Imagename)
 			if err != nil {
@@ -323,6 +368,11 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 func deleteImage(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodDelete {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
+		return
+	}
+	setupResponse(w, req)
+	if req.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	token := checkBlacklist(w, req)
@@ -344,7 +394,8 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 		result := db.QueryRow("select image_name from image where id=$1", id)
 		var deletedimage string
 		err = result.Scan(&deletedimage)
-		imagename := "temp-images/" + deletedimage
+		// imagename := "/d/training-project-repo/Image-gallery-application/08_image_uploading/02/temp-images/" + deletedimage
+		imagename := "home/ubuntu/images/" + deletedimage
 		err = os.Remove(imagename)
 		_, err = db.Query("delete from image where id=$1", id)
 		if err != nil {
@@ -356,6 +407,11 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 
 func logout(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
+		setupResponse(w, req)
+		if req.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		token := checkBlacklist(w, req)
 		if token != "" {
 			w.WriteHeader(http.StatusUnauthorized)
