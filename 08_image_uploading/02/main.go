@@ -29,7 +29,6 @@ func init() {
 		panic(err)
 	}
 	fmt.Println("you are connected to database")
-
 }
 
 func main() {
