@@ -32,25 +32,27 @@ func init() {
 }
 
 func main() {
-	http.HandleFunc("/test", test)
-	http.HandleFunc("/signup", signup)
-	http.HandleFunc("/login", login)
-	http.HandleFunc("/api/images/id/", handleone)
-	http.HandleFunc("/api/images/", handletwo)
-	http.HandleFunc("/logout", logout)
+	http.HandleFunc("/signup", cors(signup))
+	http.HandleFunc("/login", cors(login))
+	http.HandleFunc("/api/images/id/", cors(handleone))
+	http.HandleFunc("/api/images/", cors(handletwo))
+	http.HandleFunc("/logout", cors(logout))
 	http.Handle("/", http.FileServer(http.Dir("./temp-images")))
 	http.ListenAndServe(":80", nil)
 }
-func setupResponse(w *http.ResponseWriter) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-	//(*w).Header().Set("Access-Control-Allow-Credentials", "true")
-	//(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	//(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization,accept, origin, Cache-Control, X-Requested-With")
-}
 
-func test(w http.ResponseWriter, req *http.Request) {
-	setupResponse(&w)
-	fmt.Fprintln(w, "Running")
+func cors(h http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if r.Method == "OPTIONS" {
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+			return
+		} else {
+			h.ServeHTTP(w, r)
+		}
+	})
 }
 
 func handleone(w http.ResponseWriter, req *http.Request) {
@@ -99,11 +101,6 @@ type TokenDetails struct {
 
 func signup(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
-		setupResponse(&w)
-		if (*req).Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
 		b, err := ioutil.ReadAll(req.Body)
 		defer req.Body.Close()
 		if err != nil {
@@ -119,8 +116,14 @@ func signup(w http.ResponseWriter, req *http.Request) {
 		result := db.QueryRow("select username from userdetails where username=$1", creds.Username)
 		storedCreds := &Credentials{}
 		err = result.Scan(&storedCreds.Username)
+		var s string = "username already taken"
 		if storedCreds.Username != "" {
-			fmt.Fprintln(w, "username already taken")
+			stringdata, err := json.Marshal(s)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Write(stringdata)
 		} else {
 			hashedpassword, err := bcrypt.GenerateFromPassword([]byte(creds.Password), 8)
 			_, err = db.Query("insert into userdetails (username,password)values ($1,$2)", creds.Username, string(hashedpassword))
@@ -149,11 +152,6 @@ func signup(w http.ResponseWriter, req *http.Request) {
 
 func login(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
-		setupResponse(&w)
-		if (*req).Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
 		creds := &Credentials{}
 		err := json.NewDecoder(req.Body).Decode(creds)
 		if err != nil {
@@ -221,11 +219,6 @@ func getImage(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
-	setupResponse(&w)
-	if (*req).Method == "OPTIONS" {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
 	token := checkBlacklist(w, req)
 	if token != "" {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -266,11 +259,6 @@ func getImage(w http.ResponseWriter, req *http.Request) {
 func getImages(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
-		return
-	}
-	setupResponse(&w)
-	if (*req).Method == "OPTIONS" {
-		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	token := checkBlacklist(w, req)
@@ -314,11 +302,6 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 
 func createImage(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
-		setupResponse(&w)
-		if (*req).Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
 		req.ParseMultipartForm(10 << 20)
 		token := checkBlacklist(w, req)
 		if token != "" {
@@ -375,11 +358,6 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
-	setupResponse(&w)
-	if (*req).Method == "OPTIONS" {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
 	token := checkBlacklist(w, req)
 	if token != "" {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -412,11 +390,6 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 
 func logout(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
-		setupResponse(&w)
-		if (*req).Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
 		token := checkBlacklist(w, req)
 		if token != "" {
 			w.WriteHeader(http.StatusUnauthorized)
