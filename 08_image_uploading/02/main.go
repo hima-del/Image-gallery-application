@@ -32,6 +32,7 @@ func init() {
 }
 
 func main() {
+	http.HandleFunc("/test", test)
 	http.HandleFunc("/signup", signup)
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/api/images/id/", handleone)
@@ -40,11 +41,16 @@ func main() {
 	http.Handle("/", http.FileServer(http.Dir("./temp-images")))
 	http.ListenAndServe(":80", nil)
 }
-func setupResponse(w http.ResponseWriter, req *http.Request) {
-	(w).Header().Set("Access-Control-Allow-Origin", "*")
-	(w).Header().Set("Access-Control-Allow-Credentials", "true")
-	(w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	(w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization,accept, origin, Cache-Control, X-Requested-With")
+func setupResponse(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+	//(*w).Header().Set("Access-Control-Allow-Credentials", "true")
+	//(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	//(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization,accept, origin, Cache-Control, X-Requested-With")
+}
+
+func test(w http.ResponseWriter, req *http.Request) {
+	setupResponse(&w)
+	fmt.Fprintln(w, "Running")
 }
 
 func handleone(w http.ResponseWriter, req *http.Request) {
@@ -93,8 +99,8 @@ type TokenDetails struct {
 
 func signup(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
-		setupResponse(w, req)
-		if req.Method == "OPTIONS" {
+		setupResponse(&w)
+		if (*req).Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -143,8 +149,8 @@ func signup(w http.ResponseWriter, req *http.Request) {
 
 func login(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
-		setupResponse(w, req)
-		if req.Method == "OPTIONS" {
+		setupResponse(&w)
+		if (*req).Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -215,8 +221,8 @@ func getImage(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
-	setupResponse(w, req)
-	if req.Method == "OPTIONS" {
+	setupResponse(&w)
+	if (*req).Method == "OPTIONS" {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -262,8 +268,8 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
-	setupResponse(w, req)
-	if req.Method == "OPTIONS" {
+	setupResponse(&w)
+	if (*req).Method == "OPTIONS" {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -308,8 +314,8 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 
 func createImage(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
-		setupResponse(w, req)
-		if req.Method == "OPTIONS" {
+		setupResponse(&w)
+		if (*req).Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -369,8 +375,8 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
-	setupResponse(w, req)
-	if req.Method == "OPTIONS" {
+	setupResponse(&w)
+	if (*req).Method == "OPTIONS" {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -406,8 +412,8 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 
 func logout(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
-		setupResponse(w, req)
-		if req.Method == "OPTIONS" {
+		setupResponse(&w)
+		if (*req).Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
