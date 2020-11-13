@@ -37,7 +37,9 @@ func main() {
 	http.HandleFunc("/api/images/id/", cors(handleone))
 	http.HandleFunc("/api/images/", cors(handletwo))
 	http.HandleFunc("/logout", cors(logout))
-	http.Handle("/", http.FileServer(http.Dir("./temp-images")))
+	//http.Handle("/images/", http.StripPrefix("/images", http.FileServer(http.Dir("./images"))))
+	fs := http.FileServer(http.Dir("/home/ubuntu/images"))
+	http.Handle("/images/", http.StripPrefix("/images", fs))
 	http.ListenAndServe(":80", nil)
 }
 
@@ -348,7 +350,7 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 			// v := strings.TrimPrefix(fileName, `temp-images\`)
 			v := strings.TrimPrefix(fileName, `/home/ubuntu/images/`)
 			images := Imageupload{l, i, v}
-			images.Imagename = "http://13.59.20.19/" + images.Imagename
+			images.Imagename = "http://13.59.20.19/images/" + images.Imagename
 			stmnt := "insert into image (label,user_id,image_name)values ($1,$2,$3)"
 			_, err = db.Exec(stmnt, images.Label, images.Userid, images.Imagename)
 			if err != nil {
