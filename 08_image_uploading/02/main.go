@@ -177,7 +177,10 @@ func login(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 		}
 		beartoken := req.Header.Get("Authorization")
-		if beartoken != "" && len(beartoken) == 162 {
+		fmt.Println(beartoken)
+		fmt.Println(len(beartoken))
+		if beartoken != "" && len(beartoken) == 224 {
+			fmt.Println("entered")
 			newAccesstoken, err := createAccessToken(creds.ID)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -199,6 +202,8 @@ func login(w http.ResponseWriter, req *http.Request) {
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
+				fmt.Println("access token length", len(token.AccessToken))
+				fmt.Println("refresh token length", len(token.RefreshToken))
 				tokens := map[string]string{
 					"acces_token":   token.AccessToken,
 					"refresh_token": token.RefreshToken,
