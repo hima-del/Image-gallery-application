@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/dgrijalva/jwt-go"
 	_ "github.com/lib/pq"
 )
 
@@ -154,36 +155,70 @@ func signup(w http.ResponseWriter, req *http.Request) {
 
 func login(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
-		creds := &Credentials{}
-		err := json.NewDecoder(req.Body).Decode(creds)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		result := db.QueryRow("select password from userdetails where username=$1", creds.Username)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		storedCreds := &Credentials{}
-		err = result.Scan(&storedCreds.Password)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				w.WriteHeader(http.StatusUnauthorized)
+		beartoken := req.Header.Get("Authorization")
+		if beartoken == "" {
+			creds := &Credentials{}
+			err := json.NewDecoder(req.Body).Decode(creds)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		if err = bcrypt.CompareHashAndPassword([]byte(storedCreds.Password), []byte(creds.Password)); err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-		}
-		beartoken := req.Header.Get("Authorization")
-		fmt.Println(beartoken)
-		fmt.Println(len(beartoken))
-		if beartoken != "" && len(beartoken) == 224 {
-			fmt.Println("entered")
-			newAccesstoken, err := createAccessToken(creds.ID)
+			result := db.QueryRow("select password from userdetails where username=$1", creds.Username)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			storedCreds := &Credentials{}
+			err = result.Scan(&storedCreds.Password)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if err = bcrypt.CompareHashAndPassword([]byte(storedCreds.Password), []byte(creds.Password)); err != nil {
+				w.WriteHeader(http.StatusUnauthorized)
+			}
+			//if err = bcrypt.CompareHashAndPassword([]byte(storedCreds.Password), []byte(creds.Password)); err == nil {
+			token, err := createToken(creds.ID, creds.Username)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			fmt.Println("access token length", len(token.AccessToken))
+			fmt.Println("refresh token length", len(token.RefreshToken))
+			tokens := map[string]string{
+				"acces_token":   token.AccessToken,
+				"refresh_token": token.RefreshToken,
+			}
+			data, err := json.Marshal(tokens)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Write(data)
+		} else if beartoken != "" && len(beartoken) == 224 {
+			//fmt.Println("entered")
+			tokenString := extractToken(req)
+			claims := jwt.MapClaims{}
+			token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+				return []byte("REFRESH_SECRET"), nil
+			})
+			fmt.Println(token)
+			if err != nil {
+				fmt.Println(err)
+			}
+			// ... error handling
+
+			// do something with decoded claims
+			for key, val := range claims {
+				fmt.Printf("Key: %v, value: %v\n", key, val)
+			}
+			idExtracted := claims["username"]
+			//fmt.Println(id)
+			newAccesstoken, err := createAccessToken(idExtracted)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -197,26 +232,9 @@ func login(w http.ResponseWriter, req *http.Request) {
 				return
 			}
 			w.Write(tokenData)
-		} else if beartoken == "" {
-			if err = bcrypt.CompareHashAndPassword([]byte(storedCreds.Password), []byte(creds.Password)); err == nil {
-				token, err := createToken(creds.ID, creds.Username)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-				fmt.Println("access token length", len(token.AccessToken))
-				fmt.Println("refresh token length", len(token.RefreshToken))
-				tokens := map[string]string{
-					"acces_token":   token.AccessToken,
-					"refresh_token": token.RefreshToken,
-				}
-				data, err := json.Marshal(tokens)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-				w.Write(data)
-			}
+		} else if len(beartoken) != 224 {
+			w.WriteHeader(http.StatusNotFound)
+			return
 		}
 	}
 }
