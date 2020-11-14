@@ -97,7 +97,7 @@ func createToken(userid uint64, username string) (*TokenDetails, error) {
 	return td, nil
 }
 
-func createAccessToken(userid uint64) (*TokenDetails, error) {
+func createAccessToken(username interface{}) (*TokenDetails, error) {
 	var err error
 	at := &TokenDetails{}
 	at.ATExpires = time.Now().Add(time.Hour * 24).Unix()
@@ -108,7 +108,7 @@ func createAccessToken(userid uint64) (*TokenDetails, error) {
 	atClaims := jwt.MapClaims{}
 	atClaims["authorized"] = true
 	atClaims["access_uuid"] = at.AccessUUID
-	atClaims["user_id"] = userid
+	atClaims["username"] = username
 	atClaims["exp"] = at.ATExpires
 	pointerToAccessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
 	at.AccessToken, err = pointerToAccessToken.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
