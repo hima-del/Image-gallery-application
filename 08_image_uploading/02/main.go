@@ -199,7 +199,7 @@ func login(w http.ResponseWriter, req *http.Request) {
 				return
 			}
 			w.Write(data)
-		} else if beartoken != "" && len(beartoken) == 224 {
+		} else if beartoken != "" {
 			//fmt.Println("entered")
 			tokenString := extractToken(req)
 			claims := jwt.MapClaims{}
@@ -216,25 +216,28 @@ func login(w http.ResponseWriter, req *http.Request) {
 			for key, val := range claims {
 				fmt.Printf("Key: %v, value: %v\n", key, val)
 			}
-			idExtracted := claims["username"]
-			//fmt.Println(id)
-			newAccesstoken, err := createAccessToken(idExtracted)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
+			_, ok := claims["refresh_uuid"]
+			if ok == true {
+				idExtracted := claims["username"]
+				//fmt.Println(id)
+				newAccesstoken, err := createAccessToken(idExtracted)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				newToken := map[string]string{
+					"access_token": newAccesstoken.AccessToken,
+				}
+				tokenData, err := json.Marshal(newToken)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				w.Write(tokenData)
+			} else {
+				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			newToken := map[string]string{
-				"access_token": newAccesstoken.AccessToken,
-			}
-			tokenData, err := json.Marshal(newToken)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			w.Write(tokenData)
-		} else if len(beartoken) != 224 {
-			w.WriteHeader(http.StatusNotFound)
-			return
 		}
 	}
 }
