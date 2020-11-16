@@ -104,6 +104,10 @@ type TokenDetails struct {
 
 func signup(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
+		if req.URL.Path != "/signup" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		b, err := ioutil.ReadAll(req.Body)
 		defer req.Body.Close()
 		if err != nil {
@@ -134,7 +138,11 @@ func signup(w http.ResponseWriter, req *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			token, err := createToken(creds.ID, creds.Username)
+			resultID := db.QueryRow("select id from userdetails where username=$1", creds.Username)
+			var id int
+			err = resultID.Scan(&id)
+			//fmt.Println(id)
+			token, err := createToken(id, creds.Username)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -155,6 +163,10 @@ func signup(w http.ResponseWriter, req *http.Request) {
 
 func login(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
+		if req.URL.Path != "/login" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		beartoken := req.Header.Get("Authorization")
 		if beartoken == "" {
 			creds := &Credentials{}
@@ -182,7 +194,12 @@ func login(w http.ResponseWriter, req *http.Request) {
 				w.WriteHeader(http.StatusUnauthorized)
 			}
 			//if err = bcrypt.CompareHashAndPassword([]byte(storedCreds.Password), []byte(creds.Password)); err == nil {
-			token, err := createToken(creds.ID, creds.Username)
+			resultID := db.QueryRow("select id from userdetails where username=$1", creds.Username)
+			fmt.Println(resultID)
+			var id int
+			err = resultID.Scan(&id)
+			//fmt.Println("id", id)
+			token, err := createToken(id, creds.Username)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -247,6 +264,10 @@ func getImage(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
+	if req.URL.Path == "/api/images/id/" {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
 	token := checkBlacklist(w, req)
 	if token != "" {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -256,6 +277,16 @@ func getImage(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
+		tokenString := extractToken(req)
+		claims := jwt.MapClaims{}
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			return []byte("REFRESH_SECRET"), nil
+		})
+		fmt.Println(token)
+		if err != nil {
+			fmt.Println(err)
+		}
+		extrctedID := claims["user_id"]
 		urlstring := req.URL.String()
 		v := strings.TrimPrefix(urlstring, "/api/images/id/")
 		id, err := strconv.Atoi(v)
@@ -263,7 +294,7 @@ func getImage(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, http.StatusText(400), http.StatusBadRequest)
 			return
 		}
-		row := db.QueryRow("select * from image where id=$1", id)
+		row := db.QueryRow("select * from image where id=$1 and user_id=$2", id, extrctedID)
 		img := Image{}
 		err = row.Scan(&img.ID, &img.Label, &img.Userid, &img.Imagename)
 		switch {
@@ -289,6 +320,10 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
 		return
 	}
+	if req.URL.Path != "/api/images/" {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
 	token := checkBlacklist(w, req)
 	if token != "" {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -298,7 +333,17 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		rows, err := db.Query("select * from image")
+		tokenString := extractToken(req)
+		claims := jwt.MapClaims{}
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			return []byte("REFRESH_SECRET"), nil
+		})
+		fmt.Println(token)
+		if err != nil {
+			fmt.Println(err)
+		}
+		extrctedID := claims["user_id"]
+		rows, err := db.Query("select * from image where user_id=$1", extrctedID)
 		if err != nil {
 			http.Error(w, http.StatusText(500), 500)
 			return
@@ -330,6 +375,10 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 
 func createImage(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodPost {
+		if req.URL.Path != "/api/images/" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		req.ParseMultipartForm(10 << 20)
 		token := checkBlacklist(w, req)
 		if token != "" {
@@ -354,7 +403,7 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 			fmt.Println("file size:", header.Size)
 			fmt.Println("MIME header:", header.Header)
 
-			//tempFile, err := ioutil.TempFile("/d/training-project-repo/Image-gallery-application/08_image_uploading/02/temp-images", "upload-*.png")
+			//tempFile, err := ioutil.TempFile("temp-images", "upload-*.png")
 			tempFile, err := ioutil.TempFile("/home/ubuntu/images", "upload-*.png")
 			if err != nil {
 				fmt.Println(err)
@@ -368,15 +417,47 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 			tempFile.Write(fileBytes)
 			fmt.Fprintln(w, "successfully uploaded file")
 			fileName := tempFile.Name()
-			// v := strings.TrimPrefix(fileName, `temp-images\`)
+			//v := strings.TrimPrefix(fileName, `temp-images\`)
 			v := strings.TrimPrefix(fileName, `/home/ubuntu/images/`)
 			images := Imageupload{l, i, v}
 			images.Imagename = "http://13.59.20.19/images/" + images.Imagename
+			tokenString := extractToken(req)
+			claims := jwt.MapClaims{}
+			token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+				return []byte("REFRESH_SECRET"), nil
+			})
+			fmt.Println(token)
+			if err != nil {
+				fmt.Println(err)
+			}
+			extrctedID := claims["user_id"]
+			fmt.Println("extracted id", extrctedID)
 			stmnt := "insert into image (label,user_id,image_name)values ($1,$2,$3)"
-			_, err = db.Exec(stmnt, images.Label, images.Userid, images.Imagename)
+			_, err = db.Exec(stmnt, images.Label, extrctedID, images.Imagename)
 			if err != nil {
 				log.Fatalln(err)
 			}
+			resultpost := db.QueryRow("select id from image where image_name=$1", images.Imagename)
+			var id int
+			err = resultpost.Scan(&id)
+			row := db.QueryRow("select * from image where id=$1 and user_id=$2", id, extrctedID)
+			img := Image{}
+			err = row.Scan(&img.ID, &img.Label, &img.Userid, &img.Imagename)
+			switch {
+			case err == sql.ErrNoRows:
+				http.NotFound(w, req)
+				return
+			case err != nil:
+				http.Error(w, http.StatusText(500), http.StatusInternalServerError)
+				return
+			}
+			js, err := json.Marshal(img)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(js)
 		}
 	}
 }
@@ -384,6 +465,10 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 func deleteImage(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodDelete {
 		http.Error(w, http.StatusText(405), http.StatusMethodNotAllowed)
+		return
+	}
+	if req.URL.Path == "/api/images/id/" {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	token := checkBlacklist(w, req)
@@ -395,6 +480,16 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
+		tokenString := extractToken(req)
+		claims := jwt.MapClaims{}
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			return []byte("REFRESH_SECRET"), nil
+		})
+		fmt.Println(token)
+		if err != nil {
+			fmt.Println(err)
+		}
+		extrctedID := claims["user_id"]
 		urlstring := req.URL.String()
 		v := strings.TrimPrefix(urlstring, "/api/images/id/")
 		id, err := strconv.Atoi(v)
@@ -405,10 +500,10 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 		result := db.QueryRow("select image_name from image where id=$1", id)
 		var deletedimage string
 		err = result.Scan(&deletedimage)
-		// imagename := "/d/training-project-repo/Image-gallery-application/08_image_uploading/02/temp-images/" + deletedimage
+		//imagename := "temp-images" + deletedimage
 		imagename := "home/ubuntu/images/" + deletedimage
 		err = os.Remove(imagename)
-		_, err = db.Query("delete from image where id=$1", id)
+		_, err = db.Query("delete from image where id=$1 and user_id=$2", id, extrctedID)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return

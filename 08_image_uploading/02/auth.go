@@ -58,7 +58,7 @@ func tokenValid(w http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
-func createToken(userid uint64, username string) (*TokenDetails, error) {
+func createToken(userid int, username string) (*TokenDetails, error) {
 	var err error
 	td := &TokenDetails{}
 	td.ATExpires = time.Now().Add(time.Hour * 24).Unix()
