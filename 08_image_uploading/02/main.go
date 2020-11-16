@@ -225,7 +225,8 @@ func login(w http.ResponseWriter, req *http.Request) {
 			})
 			fmt.Println(token)
 			if err != nil {
-				fmt.Println(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 			// ... error handling
 
@@ -271,6 +272,7 @@ func getImage(w http.ResponseWriter, req *http.Request) {
 	token := checkBlacklist(w, req)
 	if token != "" {
 		w.WriteHeader(http.StatusUnauthorized)
+		return
 	} else {
 		err := tokenValid(w, req)
 		if err != nil {
@@ -284,13 +286,14 @@ func getImage(w http.ResponseWriter, req *http.Request) {
 		})
 		fmt.Println(token)
 		if err != nil {
-			fmt.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		extrctedID := claims["user_id"]
 		urlstring := req.URL.String()
 		v := strings.TrimPrefix(urlstring, "/api/images/id/")
 		id, err := strconv.Atoi(v)
-		if v == "" {
+		if v == "" || err != nil {
 			http.Error(w, http.StatusText(400), http.StatusBadRequest)
 			return
 		}
@@ -327,6 +330,7 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 	token := checkBlacklist(w, req)
 	if token != "" {
 		w.WriteHeader(http.StatusUnauthorized)
+		return
 	} else {
 		err := tokenValid(w, req)
 		if err != nil {
@@ -340,7 +344,8 @@ func getImages(w http.ResponseWriter, req *http.Request) {
 		})
 		fmt.Println(token)
 		if err != nil {
-			fmt.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		extrctedID := claims["user_id"]
 		rows, err := db.Query("select * from image where user_id=$1", extrctedID)
@@ -383,6 +388,7 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 		token := checkBlacklist(w, req)
 		if token != "" {
 			w.WriteHeader(http.StatusUnauthorized)
+			return
 		} else {
 			err := tokenValid(w, req)
 			if err != nil {
@@ -395,7 +401,7 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 			//uploading file
 			file, header, err := req.FormFile("imagename")
 			if err != nil {
-				fmt.Println(err)
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 			defer file.Close()
@@ -406,13 +412,15 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 			//tempFile, err := ioutil.TempFile("temp-images", "upload-*.png")
 			tempFile, err := ioutil.TempFile("/home/ubuntu/images", "upload-*.png")
 			if err != nil {
-				fmt.Println(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 			defer tempFile.Close()
 
 			fileBytes, err := ioutil.ReadAll(file)
 			if err != nil {
-				fmt.Println(err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
 			}
 			tempFile.Write(fileBytes)
 			fmt.Fprintln(w, "successfully uploaded file")
@@ -428,18 +436,24 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 			})
 			fmt.Println(token)
 			if err != nil {
-				fmt.Println(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 			extrctedID := claims["user_id"]
 			fmt.Println("extracted id", extrctedID)
 			stmnt := "insert into image (label,user_id,image_name)values ($1,$2,$3)"
 			_, err = db.Exec(stmnt, images.Label, extrctedID, images.Imagename)
 			if err != nil {
-				log.Fatalln(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 			resultpost := db.QueryRow("select id from image where image_name=$1", images.Imagename)
 			var id int
 			err = resultpost.Scan(&id)
+			if err != nil {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 			row := db.QueryRow("select * from image where id=$1 and user_id=$2", id, extrctedID)
 			img := Image{}
 			err = row.Scan(&img.ID, &img.Label, &img.Userid, &img.Imagename)
@@ -487,7 +501,8 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 		})
 		fmt.Println(token)
 		if err != nil {
-			fmt.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		extrctedID := claims["user_id"]
 		urlstring := req.URL.String()
@@ -500,6 +515,10 @@ func deleteImage(w http.ResponseWriter, req *http.Request) {
 		result := db.QueryRow("select image_name from image where id=$1", id)
 		var deletedimage string
 		err = result.Scan(&deletedimage)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		//imagename := "temp-images" + deletedimage
 		imagename := "home/ubuntu/images/" + deletedimage
 		err = os.Remove(imagename)
