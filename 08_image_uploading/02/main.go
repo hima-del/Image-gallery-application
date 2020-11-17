@@ -420,7 +420,7 @@ func createImage(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		tempFile.Write(fileBytes)
-		fmt.Fprintln(w, "successfully uploaded file")
+		fmt.Println("successfully uploaded file")
 		fileName := tempFile.Name()
 		//v := strings.TrimPrefix(fileName, `temp-images\`)
 		v := strings.TrimPrefix(fileName, `/home/ubuntu/images/`)
